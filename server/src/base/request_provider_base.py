@@ -1,31 +1,38 @@
-import requests
 import json
 import logging
+import requests
+from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
-from .response import APIResponse # Import the APIResponse class
+from urllib.parse import urljoin
 
-class Api:
-    def __init__(self, url: str, api_key: str, api_key_header_name: str = "X-Api-Key", api_base_path: str = "api/v3"):
-        """Initialize a generic API client.
+from services.response import APIResponse # Assuming APIResponse is in .response
+
+class RequestProviderBase(ABC):
+    """
+    Base class for API request providers.
+    Handles common API interaction tasks such as request formation,
+    authentication, and response processing.
+    """
+    def __init__(self, url: str, api_key: str, api_key_header_name: str = "X-Api-Key", api_base_path: str = ""):
+        """
+        Initialize the base request provider.
 
         Args:
-            url (str): The base URL of the API server (e.g., "http://your-server:8080")
+            url (str): The base URL of the API service (e.g., "http://localhost:7878").
             api_key (str): The API key for authentication.
-            api_key_header_name (str): The name of the HTTP header used to send the API key.
+            api_key_header_name (str): The name of the HTTP header used for the API key.
             api_base_path (str): The base path for all API endpoints (e.g., "api/v3").
-                                 If empty, requests will be made directly against the base URL.
         """
-        self.logger = logging.getLogger(__name__)
-        self.url = url.rstrip('/') # Ensure no trailing slash for consistent URL building
+        self.base_url = url.rstrip('/')
         self.api_key = api_key
-        self.api_key_header_name = api_key_header_name
-        # Ensure api_base_path is clean and doesn't affect URL construction negatively if empty
         self.api_base_path = api_base_path.strip('/')
         self.headers = {
-            self.api_key_header_name: api_key,
+            api_key_header_name: self.api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        # Logger will be named after the concrete class (e.g., Radarr, Sonarr)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None) -> APIResponse:
         """Make a request to the configured API.
@@ -42,7 +49,7 @@ class Api:
         """
         path_parts = [self.api_base_path, endpoint.lstrip('/')]
         actual_path = "/".join(p for p in path_parts if p) # Joins non-empty parts
-        full_url = f"{self.url}/{actual_path}"
+        full_url = f"{self.base_url}/{actual_path}"
 
         self.logger.debug(f"Making {method} request to {full_url} with params={params}, data is_present={data is not None}")
 
@@ -111,3 +118,62 @@ class Api:
                 message=err_msg,
                 error={"details": response_text_data}
             )
+
+    @abstractmethod
+    def get_quality_profiles(self) -> APIResponse:
+        """
+        Retrieves all quality profiles from the provider.
+
+        Returns:
+            APIResponse: An object containing the list of quality profiles or error information.
+        """
+        pass
+
+    @abstractmethod
+    def lookup_media(self, **identifiers: Any) -> APIResponse:
+        """
+        Looks up a media item using various identifiers.
+        Concrete implementations will determine which identifiers they support
+        (e.g., tmdb_id for movies, tvdb_id for series, term for search).
+
+        Args:
+            **identifiers: Keyword arguments representing identifiers (e.g., tmdb_id=123, term="Movie Title").
+
+        Returns:
+            APIResponse: An object containing the details of the found media item(s) or error information.
+        """
+        pass
+
+    @abstractmethod
+    def add_media(
+        self,
+        item_info: Dict[str, Any],
+        quality_profile_id: int,
+        root_folder_path: Optional[str],
+        monitor: Optional[bool] = True,
+        add_options: Optional[Dict[str, Any]] = None
+    ) -> APIResponse:
+        """
+        Adds a new media item to the provider using its detailed information.
+
+        Args:
+            item_info (Dict[str, Any]): The full metadata of the item to add (typically from a lookup_media_item call).
+            quality_profile_id (int): The ID of the quality profile to use.
+            root_folder_path (str): The path to the root folder where the item should be added.
+            monitoring_options (Dict[str, Any]): Options related to monitoring the item (e.g., {'monitored': True}).
+            add_options (Dict[str, Any]): Options related to the add operation (e.g., {'searchForMovie': True}).
+
+        Returns:
+            APIResponse: An object containing the result of the add operation or error information.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_default_settings(cls) -> Dict[str, Dict[str, Any]]:
+        """
+        Returns the default settings specific to this LLM provider.
+        This method should be implemented by each concrete provider class.
+        The structure should align with how settings are defined in SettingsService.
+        """
+        pass
