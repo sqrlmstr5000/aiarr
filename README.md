@@ -1,5 +1,11 @@
 # Discovarr - AI Powered Media Recommendations
 
+## DEPRECATED 
+
+All development on this concept has moved to hermes skills and mcp servers. 
+https://github.com/sqrlmstr5000/hermes-skills
+https://github.com/sqrlmstr5000/mcp-servers
+
 ## Description
 
 Discovarr is a comprehensive media management and automation tool designed to streamline your media consumption and discovery experience. It intelligently integrates with popular media servers like Jellyfin and Plex, download clients Radarr and Sonarr, and leverages the power of Google's Gemini AI to provide personalized media recommendations. 
